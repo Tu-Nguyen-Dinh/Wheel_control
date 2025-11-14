@@ -137,7 +137,7 @@ class Wheel
         float accel = 70.0f;        // tốc độ tăng tốc (độ/giây²)
         float maxSpeed = 166.75f;   // tốc độ tối đa (độ/giây) ~ 1 vòng/s
         float friction = 0.995f;   // ma sát khi giảm tốc (giảm chậm)
-        float friction1=  0.996f;
+        float friction1=  0.997f;
         float decelThreshold = 5.0f; // khi tốc độ nhỏ hơn giá trị này thì dừng
 
         float holdTime = 1.0f;     // giữ tốc độ cao trong 1 giây
@@ -149,7 +149,7 @@ class Wheel
         int count_back;
 
 
-        int lech = 14;
+        int lech = 12;
         
 
         Wheel()
@@ -261,21 +261,21 @@ class Wheel
                 case 5: // Chạm cột mốc
                 {
                     // Giảm tốc độ nếu đang di chuyển nhanh
-                    if (velocity > 2.0f)
+                    if (velocity > 1.5f)
                         velocity *= friction;
-                    else if(count_meet_bar == 0)
-                        velocity = 2.0f;
+                    else
+                        velocity = 1.5f;
 
                     // Nếu vừa mới chạm vào cột mốc lần đầu
-                    if (IsCollisionBar() && count_meet_bar == 0 && velocity == 2.0f)
-                        count_meet_bar = 245; 
+                    if (IsCollisionBar() && count_meet_bar == 0 && velocity == 1.5f)
+                        count_meet_bar = 100; 
 
                    
                     if (count_meet_bar > 0)
                     {
                         
                         count_meet_bar--;
-                        if(count_meet_bar <= 245) velocity *= friction1;
+                        if(count_meet_bar <= 30) velocity *= friction;
 
 
                         std::cout << "when meet bar"<<std::endl;
@@ -283,21 +283,14 @@ class Wheel
                        
                         if (count_meet_bar == 1)
                         {
-                            velocity = -1.5f;
-                            count_back = 200;
-                            phase = 7;
+                            velocity = -1.0f;
+                            phase = 6;
                         }
                     }
 
                     break;
                 }
-                case 7:
-                    count_back--;
-                    if(count_back == 0)
-                    {
-                        phase =  6;
-                    }
-                    break;
+
                 case 6: // vi tri dung
                     //velocity *= friction1;
                     if(IsStopRightPlace())
@@ -366,7 +359,7 @@ class Wheel
 };
 #define PARTICLE_FRAMES 60
 Texture2D bgrParticle[PARTICLE_FRAMES];
-#define  ARROW_FRAME 10
+#define  ARROW_FRAME 1673
 int arrow_loop = 1;
 Texture2D arrow[ARROW_FRAME];
 
@@ -491,7 +484,7 @@ int main(void) {
         DrawTexture(bgrParticle[curentFrameParticle/2],0,0,WHITE);
         wheel.Draw();
 
-        //DrawTexture(arrow[0], 406, 210, WHITE);
+        DrawTexture(arrow[currentFrameArrow], 406, 213, WHITE);
 
         DrawTexture(logoBrand[currentFrameLogo/2], 216, -62, WHITE);
         DrawTexture(logo,354,761,WHITE);
