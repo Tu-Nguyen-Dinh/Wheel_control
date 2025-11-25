@@ -16,7 +16,9 @@ const int SCREEN_HEIGHT = 1920;
 
 
 
-
+const int kStepsPerSymbol = 2;         // Mỗi symbol = 2 đơn vị di chuyển
+const float cycle = 360.0f;
+const int numSlice = 54;    // có 54 ô
 
 //----------------------------------------------------------------------------------
 // Circle Class
@@ -48,16 +50,15 @@ class Wheel
         const float accel = 70.0f;        // tốc độ tăng tốc (độ/giây²)
         const float maxSpeed = 166.73f;   // tốc độ tối đa (độ/giây) ~ 1 vòng/s
         const float friction = 0.995f;   // ma sát khi giảm tốc (giảm chậm)
-        const float cycle = 360.0f;
-        const int numSlice = 54;    // có 54 ô
+
         
 
         int phase ; // 0: idle, 1: tăng tốc, 2: giữ, 3: giảm tốc, 4: chạm đến cột ->dừng , 5: quay ngược lại về mid của slice
 
         int goContinueCnt = 0 ;
 
-        const int kBaseSpinCycles = 12;        // Số vòng giữ max speed trước khi vào giảm tốc
-        const int kStepsPerSymbol = 2;         // Mỗi symbol = 2 đơn vị di chuyển
+
+
 
         //control KẾT QUẢ DỪNG. Để di chuyển thêm 1 ô -> tăng biến này lên 2 đơn vị.
         int goToResult;
@@ -122,7 +123,7 @@ class Wheel
             return (nextSlice != currentSlice);
         }
         void UpdateWheel()
-        {   static int maxSpeedFrameCnt;
+        {  
             switch (phase)
             {
                 case 0:
@@ -133,16 +134,9 @@ class Wheel
                     if (velocity >= maxSpeed) {
                         velocity = maxSpeed;
                         phase = 2;
-                        maxSpeedFrameCnt = 0;
+                       
                     }
                     
-                    break;
-                case 7:
-                    maxSpeedFrameCnt++;
-                    if(maxSpeedFrameCnt == kBaseSpinCycles)
-                    {
-                        phase = 2;
-                    }
                     break;
                 
                 case 2: // giữ tốc độ cao
@@ -289,9 +283,9 @@ public:
         {
             arrowAnim[index++] = arrowBase[j];
         }
-        for(i = 0; i < result * 2; i++)
+        for(i = 0; i < result * kStepsPerSymbol; i++)
         {
-            arrowAnim[index++] = arrowLoop[i % 12];
+            arrowAnim[index++] = arrowLoop[i % ARROW_LOOP_FRAME];
         }
     
         for(j = 119; j < ARROW_FRAME; j++)
@@ -349,7 +343,7 @@ int main(void) {
     Arrow arrow = Arrow();
     SetTargetFPS(60);
 
-    int result = 53;// result nằm trong khoảng 0->53. Do có tất cả 54 ô.
+    int result = 0;// result nằm trong khoảng 0->53. Do có tất cả 54 ô.
     Texture2D logo = LoadTexture("./Graphic/logo_winstar.png");
     
     arrow.initArrowAnimation(result);
