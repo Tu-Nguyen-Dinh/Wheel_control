@@ -245,7 +245,7 @@ class Wheel
         }
 
 };
-#define  ARROW_FRAME 1546
+#define  ARROW_FRAME 1532
 #define ARROW_LOOP_FRAME 12
 class Arrow
 {
@@ -285,7 +285,7 @@ public:
     {   int i ;
         int j ;
         int index = 0;
-        for(j = 0; j < 131; j++)
+        for(j = 0; j < 119; j++)
         {
             arrowAnim[index++] = arrowBase[j];
         }
@@ -294,7 +294,7 @@ public:
             arrowAnim[index++] = arrowLoop[i % 12];
         }
     
-        for(j = 131; j < ARROW_FRAME; j++)
+        for(j = 119; j < ARROW_FRAME; j++)
         {
             arrowAnim[index++] = arrowBase[j];
         }
@@ -349,7 +349,7 @@ int main(void) {
     Arrow arrow = Arrow();
     SetTargetFPS(60);
 
-    int result = 20; //result chạy từ 0 đến 53 do có 54 ô
+    int result = 53;// result nằm trong khoảng 0->53. Do có tất cả 54 ô.
     Texture2D logo = LoadTexture("./Graphic/logo_winstar.png");
     
     arrow.initArrowAnimation(result);
@@ -389,7 +389,7 @@ int main(void) {
         DrawTexture(bgrParticle[curentFrameParticle/2],0,0,WHITE);
         wheel.Draw();
 
-        DrawTexture(arrow.arrowAnim[currentFrameArrow], 412 , 213, WHITE);
+        DrawTexture(arrow.arrowAnim[currentFrameArrow], 412 , 214, WHITE);
 
         DrawTexture(logoBrand[currentFrameLogo/2], 216, -62, WHITE);
         DrawTexture(logo,354,761,WHITE);
