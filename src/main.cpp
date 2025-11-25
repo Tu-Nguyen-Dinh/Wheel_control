@@ -13,100 +13,11 @@
 //----------------------------------------------------------------------------------
 const int SCREEN_WIDTH = 1080;
 const int SCREEN_HEIGHT = 1920;
-int CurrentColor = 1;
-const float THICK_LINE = 10.0f;
-const float cycle = 360.0f;
-const int numSlice = 54;
-
-//----------------------------------------------------------------------------------
-/* ANIMATION CLASS*/
-//----------------------------------------------------------------------------------
-typedef enum ANIM_STATE
-{
-
-    INACTIVE,
-    PLAY_ONCE,
-    LOOP4EVER,
-};
-class ANIMATION
-{
-    public:
-        ANIM_STATE state;
-        char nameFile[256];
-        int currentFrame;
-        int totalFrames;
-        int x,y,w,h;
-        Texture2D *texture;
-        int delayTime;
-    
-
-        ANIMATION(ANIM_STATE state, char* nameFile,int currentFrames, int totalFrames, int x, int y, int w, int h, Texture2D *texture, int delayTime)
-        {
-            this->state = state;
-            strcpy(this->nameFile , nameFile);
-            this->currentFrame = currentFrames;
-            this->totalFrames = totalFrames;
-            this->x = x;
-            this->y = y;
-            this->w = w;
-            this->h = h;
-            this->texture = texture;
-            this->delayTime = delayTime;
-        }
-        ~ANIMATION()
-        {
-            for(int i = 0; i < totalFrames; i++)
-            {
-                UnloadTexture(texture[i]);
-            }
-        }
-
-        void LoadAnimation()
-        {   
-
-            for(int i = 0; i < totalFrames; i++)
-            {   char buf[256];
-                sprintf(buf, nameFile, i);
-                LoadTexture(buf);
-                std::cout << buf << std::endl;
-            }
-        }
-
-        void SetState(ANIM_STATE newState)
-        {
-            state = newState;
-        }
-
-        void DoAnimation()
-        {
-            
-            if(state == PLAY_ONCE)
-            {
-                if(currentFrame < totalFrames)
-                {
-                    currentFrame++;
-                }
-                else
-                {
-                    state = INACTIVE;
-                    currentFrame = 0;
-                }
-            }
-            else if(state == LOOP4EVER)
-            {
-                currentFrame++;
-                if(currentFrame >= totalFrames)
-                {
-                    currentFrame = 0;
-                }
-            }
-            if(state == INACTIVE) return;
-            DrawTexture(texture[currentFrame], x, y, WHITE);
-
-        }
 
 
-};
+
+
+
 //----------------------------------------------------------------------------------
 // Circle Class
 //----------------------------------------------------------------------------------
@@ -123,33 +34,33 @@ class Wheel
         int centerX,centerY;
         float rotate;
         int offsetX, offsetY;
-        float deltaTime = 0.02f;
+        
         Texture2D texture;
         WHEEL_STATE state;
         int realW, realH;
-        float toltalTime;
-        float toltalSpin;
-        float startSpinTime;
-        float oldPos;   
-        float angle = 0.0f;
-        float velocity = 0.0f;
+        float startSpinTime;  
+        float angle;
+        float velocity;
        
-        float accel = 70.0f;        // tốc độ tăng tốc (độ/giây²)
-        float maxSpeed = 166.75f;   // tốc độ tối đa (độ/giây) ~ 1 vòng/s
-        float friction = 0.995f;   // ma sát khi giảm tốc (giảm chậm)
-        float friction1=  0.997f;
-        float decelThreshold = 5.0f; // khi tốc độ nhỏ hơn giá trị này thì dừng
-
-        float holdTime = 1.0f;     // giữ tốc độ cao trong 1 giây
-        float elapsedHold = 0.0f;
-        int phase = 0; // 0: idle, 1: tăng tốc, 2: giữ, 3: giảm tốc
-        int tmp = 0;
-        int turn_to_result = 0;
-        int count_meet_bar = 7;
-        int count_back;
 
 
-        int lech = 12;
+        const float deltaTime = 0.02f; //(FPS ~ 50 -> deltaTime = 1/FPS)
+        const float accel = 70.0f;        // tốc độ tăng tốc (độ/giây²)
+        const float maxSpeed = 166.73f;   // tốc độ tối đa (độ/giây) ~ 1 vòng/s
+        const float friction = 0.995f;   // ma sát khi giảm tốc (giảm chậm)
+        const float cycle = 360.0f;
+        const int numSlice = 54;    // có 54 ô
+        
+
+        int phase ; // 0: idle, 1: tăng tốc, 2: giữ, 3: giảm tốc, 4: chạm đến cột ->dừng , 5: quay ngược lại về mid của slice
+
+        int goContinueCnt = 0 ;
+
+        const int kBaseSpinCycles = 12;        // Số vòng giữ max speed trước khi vào giảm tốc
+        const int kStepsPerSymbol = 2;         // Mỗi symbol = 2 đơn vị di chuyển
+
+        //control KẾT QUẢ DỪNG. Để di chuyển thêm 1 ô -> tăng biến này lên 2 đơn vị.
+        int goToResult;
         
 
         Wheel()
@@ -163,14 +74,11 @@ class Wheel
             offsetY = 431; 
             realW = 1057;
             realH =  1058;
-            toltalTime = 10.0f;
-            toltalSpin = 360.0f * 2 + 90*2;
+
             centerX = realW/2;
             centerY = realH/2;
-            oldPos = rotate;
-
-
-            
+            velocity = 0.0f;
+            angle = 0.0f;
 
         }
 
@@ -178,22 +86,8 @@ class Wheel
         {
             UnloadTexture(texture);
         }
-        void Update()
-        {   if(state != SPINNING) return;
-            if(state == SPINNING)
-            {   
-                float currentTime = GetTime();
-                float t = (currentTime - startSpinTime) / toltalTime;
-                if(t >= 1.0f)
-                {
-                    state = STOP;
-                    return;
-                }
 
-                rotate = oldPos + easeInEaseOutCustom(t, 0.2f) * toltalSpin;
-            }
-        }
-        bool IsCollisionBar()
+        bool IsCollidingWithBar()
         {
             // Tính góc của mỗi lát
             float anglePerSlice = cycle / numSlice;
@@ -210,7 +104,7 @@ class Wheel
             // Nếu lát thay đổi → wheel vừa qua ranh giới (bar)
             return (nextSlice != currentSlice);
         }
-        bool IsStopRightPlace()
+        bool IsStopPosition()
         {
             // Tính góc của mỗi lát
             float anglePerSlice = cycle / numSlice;
@@ -228,7 +122,7 @@ class Wheel
             return (nextSlice != currentSlice);
         }
         void UpdateWheel()
-        {
+        {   static int maxSpeedFrameCnt;
             switch (phase)
             {
                 case 0:
@@ -239,12 +133,21 @@ class Wheel
                     if (velocity >= maxSpeed) {
                         velocity = maxSpeed;
                         phase = 2;
-                        elapsedHold = 0.0f;
+                        maxSpeedFrameCnt = 0;
+                    }
+                    
+                    break;
+                case 7:
+                    maxSpeedFrameCnt++;
+                    if(maxSpeedFrameCnt == kBaseSpinCycles)
+                    {
+                        phase = 2;
                     }
                     break;
-
+                
                 case 2: // giữ tốc độ cao
-                    if(lech -- <= 0)
+                    
+                    if(goToResult -- <= 0)
                     {
                         phase = 3;
                     }
@@ -253,61 +156,66 @@ class Wheel
                 case 3: // giảm tốc
                     velocity *= friction;
                     if (velocity < 25) {
-                        phase = 5; // dừng
+                        phase = 4; // dừng
                     }
                     break;
 
 
-                case 5: // Chạm cột mốc
+                case 4: // Chạm cột mốc
                 {
-                    // Giảm tốc độ nếu đang di chuyển nhanh
-                    if (velocity > 1.5f)
+                    const float kMinSpeed = 1.5f;
+
+                    // 1. Giảm tốc độ về mức tối thiểu
+                    if (velocity > kMinSpeed)
                         velocity *= friction;
                     else
-                        velocity = 1.5f;
+                        velocity = kMinSpeed;
 
-                    // Nếu vừa mới chạm vào cột mốc lần đầu
-                    if (IsCollisionBar() && count_meet_bar == 0 && velocity == 1.5f)
-                        count_meet_bar = 100; 
+                    // 2. Lần đầu chạm cột mốc → cho chạy tiếp 1 đoạn goContinueCnt frame
+                    bool firstTouch = (goContinueCnt == 0);
+                    bool atMinSpeed = (velocity == kMinSpeed);
 
-                   
-                    if (count_meet_bar > 0)
+                    if (IsCollidingWithBar() && firstTouch && atMinSpeed)
                     {
-                        
-                        count_meet_bar--;
-                        if(count_meet_bar <= 30) velocity *= friction;
+                        goContinueCnt = 100;
+                    }
 
+                    // 3. Nếu đang trong giai đoạn “chạy tiếp”
+                    if (goContinueCnt > 0)
+                    {
+                        goContinueCnt--;
 
-                        std::cout << "when meet bar"<<std::endl;
+                        // 3.1. Ở giai đoạn cuối thì giảm tốc mạnh hơn
+                        if (goContinueCnt <= 30)
+                            velocity *= friction;
 
-                       
-                        if (count_meet_bar == 1)
+                        // 3.2. Chuẩn bị chuyển sang phase 5
+                        if (goContinueCnt == 1)
                         {
                             velocity = -1.0f;
-                            phase = 6;
+                            phase = 5;
                         }
                     }
 
                     break;
                 }
 
-                case 6: // vi tri dung
-                    //velocity *= friction1;
-                    if(IsStopRightPlace())
+                case 5: // vi tri dung
+
+                    if(IsStopPosition())
                     {
                         phase = 0;
                         velocity = 0.0f;
                         state = STOP;
-                        std::cout << "time spin = "<< GetTime() - startSpinTime << std::endl;
+                        
                     }
                  break;
             }
 
             angle += velocity * deltaTime;
-            if(phase !=0)
-                std::cout << "phase = " << phase << " angle = "<< angle << "v = "<< velocity <<  std::endl;
-            if (angle >= 360.0f) angle -= 360.0f;
-            if (angle < 0) angle += 360.0f;
+
+            if (angle >= cycle) angle -= cycle;
+            if (angle < 0) angle += cycle;
         }
         void Draw()
         {
@@ -316,16 +224,18 @@ class Wheel
             (Vector2){(float)(centerX ) ,(float)(centerY)}, angle,WHITE
             );
         }
-        void StartSpin()
-        {   
-            std::cout << "start" << std::endl;
+        void StartSpin(int resultPosition)
+        {
             state = SPINNING;
             startSpinTime = GetTime();
-            oldPos = rotate;
             phase = 1;
-            velocity = 0;
-            tmp = 0;
-            count_meet_bar = 0;
+            velocity = 0.0f;
+
+
+
+            // --- Result control ---
+            // Mỗi symbol trong kết quả tương ứng với 2 bước.
+            goToResult =resultPosition * kStepsPerSymbol;
 
         }
         bool IsWheelSpin()
@@ -333,44 +243,83 @@ class Wheel
             if(state == SPINNING) return 1;
             else return 0;
         }
-        float easeInEaseOutCustom(float t, float accelPortion)
-        {
-            if(accelPortion <= 0.0f)
-            {
-                accelPortion = 0.01f;
-            }
-            if(accelPortion >= 1.0f)
-                accelPortion = 0.99f;
-            
-            if (t < accelPortion)
-            {
-                // Giai đoạn tăng tốc: scale t về [0, 1]
-                float nt = t / accelPortion;
-                return nt * nt * nt * (accelPortion); // cubic in
-            }
-            else
-            {
-                // Giai đoạn giảm tốc: scale t về [0, 1]
-                float nt = (t - accelPortion) / (1.0f - accelPortion);
-                float f = (nt - 1.0f);
-                return accelPortion + (1.0f - accelPortion) * (1.0f + f * f * f); // cubic out
-            }
-        }
+
 };
+#define  ARROW_FRAME 1546
+#define ARROW_LOOP_FRAME 12
+class Arrow
+{
+public:
+    Texture2D arrowBase[ARROW_FRAME];
+    Texture2D arrowLoop[12];
+    Texture2D arrowAnim[ARROW_FRAME + 54*2]; //-> this texture will be displace
+    int totalFrame;
+    Arrow()
+    {   
+        for(int i = 0; i < ARROW_FRAME; i++)
+        {
+            char buf[256];
+            sprintf(buf,"./Anim/Arrow/Arrow_%05d.png",i);
+            arrowBase[i] = LoadTexture(buf);
+
+        }
+        for(int i = 0; i < ARROW_LOOP_FRAME; i++)
+        {
+            char buf[256];
+            sprintf(buf,"./Anim/ArrowLoop/ArrowLoop_%02d.png",i);
+            arrowLoop[i] = LoadTexture(buf);
+        }
+
+    }
+    ~Arrow()
+    {   
+        for(int i = 0; i < ARROW_FRAME; i++)
+            UnloadTexture(arrowBase[i]);
+        for(int i = 0; i < ARROW_LOOP_FRAME; i++)
+        {
+            UnloadTexture(arrowLoop[i]);
+        }
+    }
+
+    void initArrowAnimation(int result)
+    {   int i ;
+        int j ;
+        int index = 0;
+        for(j = 0; j < 131; j++)
+        {
+            arrowAnim[index++] = arrowBase[j];
+        }
+        for(i = 0; i < result * 2; i++)
+        {
+            arrowAnim[index++] = arrowLoop[i % 12];
+        }
+    
+        for(j = 131; j < ARROW_FRAME; j++)
+        {
+            arrowAnim[index++] = arrowBase[j];
+        }
+        totalFrame = index;
+    }
+
+};
+
+
+
+
 #define PARTICLE_FRAMES 60
 Texture2D bgrParticle[PARTICLE_FRAMES];
-#define  ARROW_FRAME 1673
-int arrow_loop = 1;
-Texture2D arrow[ARROW_FRAME];
+
+
+
+
 
 #define LOGO_FRAME 60
-
 Texture2D logoBrand[LOGO_FRAME];
 
-ANIMATION bgrParticleAnim = ANIMATION(LOOP4EVER, "./Anim/Particle/Background Particle_%05d.png", 0, PARTICLE_FRAMES, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgrParticle,1);
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
+
 int main(void) {
     // Initialization
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Refactored Circle Example");
@@ -382,97 +331,53 @@ int main(void) {
         sprintf(buf,"./Anim/Particle/Background Particle_%05d.png",i );
         bgrParticle[i] = LoadTexture(buf);
     }
-    for(int i = 0; i < ARROW_FRAME; i++)
-    {
-        char buf[256];
-        sprintf(buf,"./Anim/Arrow/Arrow_%05d.png",i);
-        arrow[i] = LoadTexture(buf);
 
-    }
     for(int i = 0; i < LOGO_FRAME; i++)
     {
         char buf[256];
         sprintf(buf,"./Anim/Logo/LogoGame_%05d.png",i);
         logoBrand[i] = LoadTexture(buf);
     }
-    //bgrParticleAnim.LoadAnimation();
-    // Camera2D camera = { 0 };
-    // bool zooming = false;
-    // float zoomSpeed = 0.3f;     // tốc độ zoom
-    // float maxZoom = 3.0f;       // zoom tối đa
-    // camera.target = (Vector2){540,960};
-    // camera.offset = (Vector2){540,960};
-    // camera.zoom = 1.0f;
-    int wheel_spin_frame = 0;
+
+
     int curentFrameParticle = 0;
     int currentFrameArrow = 0;
     int currentFrameLogo = 0;
-    Rectangle rect = {324, 209 + 30, 420, 409}; // vùng muốn zoom vào
-    Vector2 rectCenter = {rect.x + rect.width / 2, rect.y + rect.height / 2};
+
+
     Wheel wheel = Wheel();
+    Arrow arrow = Arrow();
     SetTargetFPS(60);
 
-
+    int result = 20; //result chạy từ 0 đến 53 do có 54 ô
     Texture2D logo = LoadTexture("./Graphic/logo_winstar.png");
-    // vẽ toàn bộ cảnh 1080x1920 ở đây
-    float dt = 0.016f;
-    // Main game loop
-    Color colorText = WHITE;
-    // zooming = false;
-    int framewheelin1loop;
+    
+    arrow.initArrowAnimation(result);
     while (!WindowShouldClose()) {
         if(IsKeyPressed(KEY_SPACE) && wheel.state == STOP)
         {   
-            wheel.StartSpin();
-
+            wheel.StartSpin(result);
+           
         }
-        if(curentFrameParticle++ / 2 >= 59) curentFrameParticle = 0;
-        if(currentFrameLogo++ / 2 >= 59) currentFrameLogo = 0;
+        if(curentFrameParticle++ / 2 >= PARTICLE_FRAMES - 1) curentFrameParticle = 0;
+        if(currentFrameLogo++ / 2 >= LOGO_FRAME - 1) currentFrameLogo = 0;
         
-        if(wheel.IsWheelSpin() && arrow_loop )
+        if(wheel.IsWheelSpin())
         {   
-            
             currentFrameArrow++;
 
-            
-            if(currentFrameArrow >= ARROW_FRAME)
-            { currentFrameArrow = 0;
-                arrow_loop--;
-            }
         }else 
         {   
             currentFrameArrow = 0;
+        }
+        if(currentFrameArrow >= arrow.totalFrame )
+        { 
+            currentFrameArrow = arrow.totalFrame - 1;
+        }
 
-        }
+
          
-        if(wheel.IsWheelSpin())
-        {    
-            if(wheel.phase == 2)
-            {
-                colorText = RED;
-            }else colorText = WHITE;
-           
-            wheel_spin_frame++;
-           
-        }
-        // if (zooming)
-        // {   
-        //     std::cout << zooming << "  " << camera.zoom  << " " << dt <<  std::endl;
-        //     // Di chuyển camera target dần dần đến tâm của rect
-        //     camera.target.x += (rectCenter.x - camera.target.x) * dt * 2.0f;
-        //     if(camera.zoom >= 2.0)
-        //         camera.target.y += (rectCenter.y - camera.target.y) * dt * 2.0f;
-        //     // camera.offset.x += (rect.width/2 - camera.offset.x) *dt;
-           
-               
-        //     // Tăng dần zoom
-        //     camera.zoom += zoomSpeed * dt;
-        //     if (camera.zoom >= maxZoom || camera.offset.y <= rect.height/2)
-        //     {
-        //         // camera.zoom = maxZoom;
-        //         zooming = false; // dừng lại khi đạt zoom mong muốn
-        //     }
-        // }
+
         wheel.UpdateWheel();
         float fps = GetFPS();
         BeginDrawing();
@@ -484,18 +389,15 @@ int main(void) {
         DrawTexture(bgrParticle[curentFrameParticle/2],0,0,WHITE);
         wheel.Draw();
 
-        DrawTexture(arrow[currentFrameArrow], 406, 213, WHITE);
+        DrawTexture(arrow.arrowAnim[currentFrameArrow], 412 , 213, WHITE);
 
         DrawTexture(logoBrand[currentFrameLogo/2], 216, -62, WHITE);
         DrawTexture(logo,354,761,WHITE);
         
         DrawText(TextFormat("FPS = %0.2f", fps),10,10,40,WHITE);
-        DrawText(TextFormat("frame wheel =  %d", wheel_spin_frame),10,70,40,colorText);
-        // DrawText(TextFormat("zoom = %0.2f| targe {%f,%f}", camera.zoom, camera.target.x, camera.target.y),10,60,40,WHITE);
-        
+        if(wheel.phase == 2) std::cout << currentFrameArrow << std::endl;
         
          EndDrawing();
-        // EndMode2D();
     }
     UnloadTexture(wheel_bgr);
 
